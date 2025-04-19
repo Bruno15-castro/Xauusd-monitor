@@ -474,5 +474,251 @@ def plot_chart(data, opportunities):
         x=data.index,
         y=data['didi_slow'],
         name="Didi Slow",
-      
-(Content truncated due to size limit. Use line ranges to read in chunks)
+        line=dict(color='red', width=1.5)
+    ), row=2, col=1)
+    
+    # Adiciona uma linha horizontal em 0 para o Didi Index
+    fig.add_shape(
+        type="line",
+        x0=data.index[0],
+        y0=0,
+        x1=data.index[-1],
+        y1=0,
+        line=dict(color="black", width=1, dash="dot"),
+        row=2, col=1
+    )
+    
+    # Adiciona o ADX
+    fig.add_trace(go.Scatter(
+        x=data.index,
+        y=data['ADX'],
+        name="ADX",
+        line=dict(color='purple', width=1.5)
+    ), row=3, col=1)
+    
+    # Adiciona uma linha horizontal em 32 para o ADX
+    fig.add_shape(
+        type="line",
+        x0=data.index[0],
+        y0=32,
+        x1=data.index[-1],
+        y1=32,
+        line=dict(color="red", width=1, dash="dot"),
+        row=3, col=1
+    )
+    
+    # Marca as oportunidades no gráfico
+    for opp in opportunities:
+        # Cor e símbolo com base no tipo de operação e sinal
+        if opp['type'] == 'compra':
+            marker_color = 'green'
+            marker_symbol = 'triangle-up'
+        else:  # venda
+            marker_color = 'red'
+            marker_symbol = 'triangle-down'
+        
+        # Tamanho com base no tipo de sinal
+        marker_size = 12 if opp['signal'] == 'completo' else 8
+        
+        # Adiciona o marcador
+        fig.add_trace(go.Scatter(
+            x=[opp['timestamp']],
+            y=[opp['price']],
+            mode='markers',
+            marker=dict(
+                color=marker_color,
+                size=marker_size,
+                symbol=marker_symbol,
+                line=dict(color='black', width=1)
+            ),
+            name=f"{opp['type'].capitalize()} ({opp['signal'].capitalize()})",
+            showlegend=False
+        ), row=1, col=1)
+    
+    # Configurações de layout
+    fig.update_layout(
+        height=700,
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    # Configurações dos eixos Y
+    fig.update_yaxes(title_text="Preço (USD)", row=1, col=1)
+    fig.update_yaxes(title_text="Didi Index", row=2, col=1)
+    fig.update_yaxes(title_text="ADX", row=3, col=1)
+    
+    return fig
+
+def display_opportunity_card(opportunity):
+    """
+    Exibe um card com os detalhes da oportunidade.
+    
+    Args:
+        opportunity (dict): Dicionário com os detalhes da oportunidade
+    """
+    # Determina as classes CSS com base no tipo de operação e sinal
+    if opportunity['type'] == 'compra':
+        header_class = 'buy-signal'
+        header_text = 'COMPRA'
+    else:  # venda
+        header_class = 'sell-signal'
+        header_text = 'VENDA'
+    
+    if opportunity['signal'] == 'completo':
+        signal_text = 'SINAL COMPLETO'
+    else:
+        signal_text = 'ALERTA'
+        header_class = 'alert-signal'
+    
+    # Formata a data/hora
+    timestamp = opportunity['timestamp'].strftime('%d/%m/%Y %H:%M')
+    
+    # Exibe o card
+    st.markdown(f"""
+    <div class="opportunity-card">
+        <div class="{header_class}">
+            {header_text} - {signal_text} - {timestamp}
+        </div>
+        
+        <div class="metric-container">
+            <div class="metric-box">
+                <div class="metric-label">Preço</div>
+                <div class="metric-value">${opportunity['price']:.2f}</div>
+            </div>
+            
+            <div class="metric-box">
+                <div class="metric-label">ADX</div>
+                <div class="metric-value">{opportunity['adx']:.2f}</div>
+            </div>
+            
+            <div class="metric-box">
+                <div class="metric-label">Stop Loss</div>
+                <div class="metric-value">${opportunity['stop_loss']:.2f}</div>
+            </div>
+            
+            <div class="metric-box">
+                <div class="metric-label">Take Profit</div>
+                <div class="metric-value">${opportunity['take_profit']:.2f}</div>
+            </div>
+        </div>
+        
+        <div>
+            <p>ADX: {'↗️ Crescendo' if opportunity['adx_rising'] else '➡️ Estável/Caindo'}</p>
+            <p>Bandas de Bollinger: {'✅ Abertura Significativa' if opportunity['bb_significant'] else '❌ Abertura Normal'}</p>
+            <p>Risco/Retorno: 1:{((opportunity['take_profit'] - opportunity['price']) / (opportunity['price'] - opportunity['stop_loss'])):.1f}</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Interface principal
+def main():
+    # Cabeçalho
+    st.markdown('<h1 class="main-header">XAUUSD Monitor - Metodologia Didi Aguiar</h1>', unsafe_allow_html=True)
+    
+    # Sidebar para configurações
+    with st.sidebar:
+        st.markdown('<h2 class="sub-header">Configurações</h2>', unsafe_allow_html=True)
+        
+        # Intervalo de tempo
+        interval = st.selectbox(
+            "Intervalo de tempo",
+            options=["1m", "5m", "15m", "30m", "60m", "1d"],
+            index=2  # 15m por padrão
+        )
+        
+        # Dias para trás
+        days_back = st.slider(
+            "Dias para análise",
+            min_value=1,
+            max_value=30,
+            value=5
+        )
+        
+        # Botão para atualizar dados
+        if st.button("Atualizar Dados"):
+            st.session_state.update_time = time.time()
+            st.session_state.update_counter = st.session_state.get('update_counter', 0) + 1
+    
+    # Inicializa o contador de atualizações se não existir
+    if 'update_counter' not in st.session_state:
+        st.session_state.update_counter = 0
+        st.session_state.update_time = time.time()
+    
+    # Exibe o status da última atualização
+    last_update = datetime.datetime.fromtimestamp(st.session_state.update_time).strftime('%d/%m/%Y %H:%M:%S') if hasattr(st.session_state, 'update_time') else "Nunca"
+    st.markdown(f"<p>Última atualização: {last_update}</p>", unsafe_allow_html=True)
+    
+    # Obtém os dados
+    with st.spinner("Carregando dados do XAUUSD..."):
+        data = get_xauusd_data(interval=interval, days_back=days_back)
+        
+        # Calcula os indicadores
+        data = calculate_didi_index(data)
+        data = calculate_adx(data)
+        data = calculate_bollinger_bands(data)
+        
+        # Identifica oportunidades
+        opportunities = find_opportunities(data)
+    
+    # Exibe o gráfico
+    st.markdown('<h2 class="sub-header">Gráfico XAUUSD</h2>', unsafe_allow_html=True)
+    fig = plot_chart(data, opportunities)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Exibe as oportunidades identificadas
+    st.markdown('<h2 class="sub-header">Oportunidades Identificadas</h2>', unsafe_allow_html=True)
+    
+    # Filtra as oportunidades mais recentes (últimas 24 horas)
+    recent_time = datetime.datetime.now() - datetime.timedelta(hours=24)
+    recent_opportunities = [opp for opp in opportunities if opp['timestamp'] > recent_time]
+    
+    # Exibe o contador de oportunidades
+    st.markdown(f"""
+    <div class="metric-container">
+        <div class="metric-box">
+            <div class="metric-label">Total de Oportunidades</div>
+            <div class="metric-value">{len(opportunities)}</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">Últimas 24 horas</div>
+            <div class="metric-value">{len(recent_opportunities)}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Exibe as oportunidades recentes
+    if recent_opportunities:
+        for opp in sorted(recent_opportunities, key=lambda x: x['timestamp'], reverse=True):
+            display_opportunity_card(opp)
+    else:
+        st.info("Nenhuma oportunidade recente identificada nas últimas 24 horas.")
+    
+    # Exibe informações sobre a metodologia
+    with st.expander("Sobre a Metodologia de Didi Aguiar"):
+        st.markdown("""
+        ### Metodologia de Didi Aguiar
+
+        A metodologia de Didi Aguiar, desenvolvida pelo analista brasileiro Odir Aguiar (Didi), baseia-se na identificação de pontos de reversão no mercado através de um conjunto de indicadores técnicos:
+
+        1. **Didi Index**: Indicador principal que utiliza três médias móveis (3, 8 e 20 períodos) para identificar "agulhadas" - momentos de reversão no mercado.
+
+        2. **ADX (Average Directional Index)**: Utilizado para confirmar a força da tendência, com sinal positivo quando está acima do nível 32 e crescendo.
+
+        3. **Bandas de Bollinger**: Utilizadas para confirmar volatilidade, com sinal positivo quando há abertura significativa das bandas.
+
+        Um sinal completo ocorre quando todos estes elementos se alinham simultaneamente, indicando uma oportunidade de alta probabilidade de sucesso.
+        """)
+    
+    # Rodapé
+    st.markdown('<div class="footer">XAUUSD Monitor - Versão Web Simplificada - Baseado na Metodologia de Didi Aguiar</div>', unsafe_allow_html=True)
+
+# Executa a aplicação
+if __name__ == "__main__":
+    main()
