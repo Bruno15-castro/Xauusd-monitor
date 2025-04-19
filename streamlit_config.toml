@@ -1,0 +1,5 @@
+name: XAUUSD Monitor - Didi Aguiar
+description: Monitoramento de oportunidades de trading no XAUUSD baseado na metodologia de Didi Aguiar
+sdk: streamlit
+sdk_version: 1.32.0
+python_version: 3.10
